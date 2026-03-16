@@ -1,4 +1,4 @@
-# AI CI Error Explainer
+# explain-ci
 
 Explain failed GitHub Actions jobs in plain English using your own LLM key.
 
@@ -66,7 +66,7 @@ jobs:
 
 			- name: Explain failure
 				if: failure()
-				uses: gopalcnepal/ai-ci-error-explainer@v1
+				uses: gopalcnepal/explain-ci@v1
 				with:
 					api_key: ${{ secrets.OPENAI_API_KEY }}
 ```
@@ -78,7 +78,7 @@ OpenAI:
 ```yaml
 - name: Explain failure (OpenAI)
 	if: failure()
-	uses: gopalcnepal/ai-ci-error-explainer@v1
+	uses: gopalcnepal/explain-ci@v1
 	with:
 		api_key: ${{ secrets.OPENAI_API_KEY }}
 		provider: openai
@@ -90,7 +90,7 @@ Claude:
 ```yaml
 - name: Explain failure (Claude)
 	if: failure()
-	uses: gopalcnepal/ai-ci-error-explainer@v1
+	uses: gopalcnepal/explain-ci@v1
 	with:
 		api_key: ${{ secrets.CLAUDE_API_KEY }}
 		provider: claude
@@ -102,7 +102,7 @@ Gemini (OpenAI-compatible endpoint):
 ```yaml
 - name: Explain failure (Gemini)
 	if: failure()
-	uses: gopalcnepal/ai-ci-error-explainer@v1
+	uses: gopalcnepal/explain-ci@v1
 	with:
 		api_key: ${{ secrets.GEMINI_API_KEY }}
 		provider: gemini
@@ -114,7 +114,7 @@ OpenRouter:
 ```yaml
 - name: Explain failure (OpenRouter)
 	if: failure()
-	uses: gopalcnepal/ai-ci-error-explainer@v1
+	uses: gopalcnepal/explain-ci@v1
 	with:
 		api_key: ${{ secrets.OPENROUTER_API_KEY }}
 		provider: openrouter
@@ -126,7 +126,7 @@ OpenRouter:
 ```yaml
 - name: Explain failure (Custom Endpoint)
 	if: failure()
-	uses: gopalcnepal/ai-ci-error-explainer@v1
+	uses: gopalcnepal/explain-ci@v1
 	with:
 		api_key: ${{ secrets.CUSTOM_LLM_API_KEY }}
 		model: my-model
@@ -158,7 +158,7 @@ OpenRouter:
 - name: Explain failure
 	id: explain
 	if: failure()
-	uses: gopalcnepal/ai-ci-error-explainer@v1
+	uses: gopalcnepal/explain-ci@v1
 	with:
 		api_key: ${{ secrets.OPENAI_API_KEY }}
 

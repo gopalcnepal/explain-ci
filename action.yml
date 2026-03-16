@@ -1,4 +1,4 @@
-name: 'AI CI Error Explainer'
+name: 'explain-ci'
 description: >
   Explains failed GitHub Actions job logs in plain English using AI.
   Automatically posts explanations as PR comments or commit comments.
