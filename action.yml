@@ -1,0 +1,73 @@
+name: 'AI CI Error Explainer'
+description: >
+  Explains failed GitHub Actions job logs in plain English using AI.
+  Automatically posts explanations as PR comments or commit comments.
+  Supports OpenAI, Gemini, Groq, Deepseek, Mistral, xAI (Grok), and any
+  OpenAI-compatible provider via custom base_url.
+author: 'gopalcnepal'
+branding:
+  icon: 'terminal'
+  color: 'orange'
+
+inputs:
+  api_key:
+    description: 'Your LLM API Key (OpenAI, Claude, Gemini, xAI (Grok), etc.)'
+    required: true
+
+  model:
+    description: 'Model name to use for analysis (e.g. gpt-4o-mini, gemini-2.0-flash, llama3)'
+    required: false
+    default: 'gpt-4o-mini'
+
+  provider:
+    description: 'LLM provider shorthand: openai, gemini, groq, mistral, deepseek, xai, ollama, openrouter, etc. Ignored if base_url is set.'
+    required: false
+    default: 'openai'
+
+  base_url:
+    description: 'Custom OpenAI-compatible base URL. Overrides provider. Use for Ollama, self-hosted LLMs, or Azure OpenAI.'
+    required: false
+    default: ''
+
+outputs:
+  explanation_markdown:
+    description: 'Model-generated markdown explanation for the failed CI job.'
+    value: ${{ steps.analyze.outputs.explanation_markdown }}
+  comment_target:
+    description: 'Where comment posting was attempted: pr, commit, none, stale_skipped, or *_post_failed.'
+    value: ${{ steps.analyze.outputs.comment_target }}
+  comment_posted:
+    description: 'Whether a PR comment was successfully posted.'
+    value: ${{ steps.analyze.outputs.comment_posted }}
+  pr_number:
+    description: 'Resolved PR number for this run when available.'
+    value: ${{ steps.analyze.outputs.pr_number }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5.2.0
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install -r "${{ github.action_path }}/requirements.txt" --quiet
+
+    - name: Analyze CI error and post explanation
+      id: analyze
+      shell: bash
+      env:
+        INPUT_API_KEY:      ${{ inputs.api_key }}
+        INPUT_MODEL:        ${{ inputs.model }}
+        INPUT_PROVIDER:     ${{ inputs.provider }}
+        INPUT_BASE_URL:     ${{ inputs.base_url }}
+        GITHUB_TOKEN:       ${{ github.token }}
+        GITHUB_REPOSITORY:  ${{ github.repository }}
+        GITHUB_RUN_ID:      ${{ github.run_id }}
+        GITHUB_EVENT_NAME:  ${{ github.event_name }}
+        GITHUB_SHA:         ${{ github.sha }}
+        PR_NUMBER:          ${{ github.event.pull_request.number }}
+      run: python "${{ github.action_path }}/main.py"
