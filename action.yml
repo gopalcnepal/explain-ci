@@ -1,9 +1,5 @@
 name: 'Explain CI'
-description: >
-  Explains failed GitHub Actions job logs in plain English using AI.
-  Automatically posts explanations as PR comments or commit comments.
-  Supports OpenAI, Gemini, Claude, Deepseek, Mistral, xAI (Grok), and any
-  OpenAI-compatible provider via custom base_url.
+description: 'Explain failed GitHub Actions jobs in plain English using your LLM provider'
 author: 'gopalcnepal'
 branding:
   icon: 'terminal'
