@@ -1,4 +1,4 @@
-# explain-ci
+# Explain CI
 
 Explain failed GitHub Actions jobs in plain English using your own LLM key.
 
@@ -162,10 +162,18 @@ explain-failure:
 - **PR Comment Deduplication**: If the same commit is tested in both a `pull_request` event (PR) and a `push` event, only the PR run comments to avoid duplicates.
 - **Comment Target**: If a PR exists for the commit, explains comment on the PR. Otherwise, comments on the commit directly.
 - **Stale Run Protection**: Only the latest workflow run on a branch+event pair comments, preventing duplicate explanations from reruns.
+- **API Key Security**: Your API key is automatically masked in GitHub Actions logs to prevent accidental exposure.
+
+## Security & Best Practices
+
+- **Always use GitHub Secrets**: Store your API key as a repository or organization secret, never hardcode it.
+- **API Key Masking**: The action automatically masks your API key in workflow logs via `::add-mask::` to prevent accidental exposure in logs or console output.
+- **Token Scope**: The action uses the automatically-provided `GITHUB_TOKEN` for GitHub API calls. Ensure your workflow permissions include `actions: read` to fetch workflow logs.
+- **Custom Endpoints**: When using `base_url`, ensure your endpoint URL is trustworthy and supports HTTPS.
 
 ## Self-hosted Runner Notes
 
-- Ensure Python 3.12 is available or installable by `actions/setup-python@v5`.
+- Ensure Python 3.12 is available or installable by `actions/setup-python@v6`.
 - Ensure outbound network access to:
 	- `api.github.com`
 	- your selected LLM endpoint
@@ -208,7 +216,8 @@ explain-failure:
 | No comment appears for older run | Stale run protection skipped it | Expected; newest run handles comment |
 | `comment_target=pr_post_failed` | Token lacks write scope | Add `pull-requests: write` permissions |
 | `comment_target=commit_post_failed` | Token lacks contents scope | Add `contents: write` permissions |
-| 401/403 from provider API | Invalid key or endpoint | Verify key, provider, model, and `base_url` |
+| 401/403 from provider API | Invalid key or endpoint | Verify key, provider, model, and `base_url`; check that secret is correctly passed |
+| API key appears in logs | Workflow doesn't mask secrets | Ensure action runs with proper permissions; key masking is automatic |
 | Action not found or wrong version | Bad ref in `uses` | Use stable tag (for example `@v1`) |
 
 ## Development

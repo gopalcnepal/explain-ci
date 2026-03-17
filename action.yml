@@ -1,8 +1,8 @@
-name: 'explain-ci'
+name: 'Explain CI'
 description: >
   Explains failed GitHub Actions job logs in plain English using AI.
   Automatically posts explanations as PR comments or commit comments.
-  Supports OpenAI, Gemini, Groq, Deepseek, Mistral, xAI (Grok), and any
+  Supports OpenAI, Gemini, Claude, Deepseek, Mistral, xAI (Grok), and any
   OpenAI-compatible provider via custom base_url.
 author: 'gopalcnepal'
 branding:
@@ -47,9 +47,13 @@ runs:
   using: 'composite'
   steps:
     - name: Set up Python 3.12
-      uses: actions/setup-python@v5.2.0
+      uses: actions/setup-python@v6
       with:
         python-version: '3.12'
+
+    - name: Mask API key
+      shell: bash
+      run: echo "::add-mask::${{ inputs.api_key }}"
 
     - name: Install dependencies
       shell: bash
