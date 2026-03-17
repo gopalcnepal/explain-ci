@@ -10,14 +10,15 @@ This action:
 
 ## Requirements
 
-- A workflow job that can run this action when previous steps fail (`if: failure()`).
+- **IMPORTANT: explain-ci must run as a separate job** that depends on the job(s) being analyzed (see job placement below).
 - A valid API key for your chosen provider.
-- Workflow token permissions that allow PR comments.
+- Workflow token permissions: `actions: read`, `contents: write`, `pull-requests: write`.
 
 Recommended workflow permissions:
 
 ```yaml
 permissions:
+	actions: read
 	contents: write
 	pull-requests: write
 ```
@@ -40,7 +41,16 @@ permissions:
 | `comment_posted` | `true` or `false` |
 | `pr_number` | Resolved PR number if available |
 
-## Quickstart (Basic)
+## Usage: Job Placement
+
+⚠️ **CRITICAL**: explain-ci must run as a **separate job** (not a step in the failing job). This ensures:
+- The failed job's log is finalized and queryable via GitHub API
+- Multiple failed jobs in the same workflow are handled correctly
+- The action can run with appropriate timeout and error handling
+
+## Quickstart: Separate Job Pattern
+
+Place explain-ci in its own job that depends on other jobs:
 
 ```yaml
 name: CI
@@ -50,6 +60,7 @@ on:
 	push:
 
 permissions:
+	actions: read
 	contents: write
 	pull-requests: write
 
@@ -61,83 +72,96 @@ jobs:
 
 			- name: Run tests
 				run: |
-					echo "simulate failure"
-					exit 1
+					npm test
 
-			- name: Explain failure
-				if: failure()
+	explain-failure:
+		if: always()
+		needs: test
+		runs-on: ubuntu-latest
+		steps:
+			- name: Explain CI failure
 				uses: gopalcnepal/explain-ci@v1
 				with:
 					api_key: ${{ secrets.OPENAI_API_KEY }}
 ```
 
-## Provider Switch Examples
+Key points:
+- `explain-failure` job has `needs: test` (depends on the test job)
+- Uses `if: always()` so it runs whether test passed or failed
+- Placed **after** all jobs you want to analyze
+- explain-ci will detect failures from any job in the workflow
 
-OpenAI:
+## Provider Examples
+
+### OpenAI
 
 ```yaml
-- name: Explain failure (OpenAI)
-	if: failure()
-	uses: gopalcnepal/explain-ci@v1
-	with:
-		api_key: ${{ secrets.OPENAI_API_KEY }}
-		provider: openai
-		model: gpt-4o-mini
+explain-failure:
+	if: always()
+	needs: [test, lint]
+	runs-on: ubuntu-latest
+	steps:
+		- name: Explain CI failure
+			uses: gopalcnepal/explain-ci@v1
+			with:
+				api_key: ${{ secrets.OPENAI_API_KEY }}
+				provider: openai
+				model: gpt-4o-mini
 ```
 
-Claude:
+### Claude
 
 ```yaml
-- name: Explain failure (Claude)
-	if: failure()
-	uses: gopalcnepal/explain-ci@v1
-	with:
-		api_key: ${{ secrets.CLAUDE_API_KEY }}
-		provider: claude
-		model: claude-sonnet-4-6
+explain-failure:
+	if: always()
+	needs: [test, lint]
+	runs-on: ubuntu-latest
+	steps:
+		- name: Explain CI failure
+			uses: gopalcnepal/explain-ci@v1
+			with:
+				api_key: ${{ secrets.CLAUDE_API_KEY }}
+				provider: claude
+				model: claude-sonnet-4-6
 ```
 
-Gemini (OpenAI-compatible endpoint):
+### Gemini
 
 ```yaml
-- name: Explain failure (Gemini)
-	if: failure()
-	uses: gopalcnepal/explain-ci@v1
-	with:
-		api_key: ${{ secrets.GEMINI_API_KEY }}
-		provider: gemini
-		model: gemini-2.0-flash
+explain-failure:
+	if: always()
+	needs: [test, lint]
+	runs-on: ubuntu-latest
+	steps:
+		- name: Explain CI failure
+			uses: gopalcnepal/explain-ci@v1
+			with:
+				api_key: ${{ secrets.GEMINI_API_KEY }}
+				provider: gemini
+				model: gemini-2.0-flash
 ```
 
-OpenRouter:
+### Custom Endpoint (Ollama, Self-hosted, Azure)
 
 ```yaml
-- name: Explain failure (OpenRouter)
-	if: failure()
-	uses: gopalcnepal/explain-ci@v1
-	with:
-		api_key: ${{ secrets.OPENROUTER_API_KEY }}
-		provider: openrouter
-		model: openai/gpt-4o-mini
-```
-
-## Custom base_url Example
-
-```yaml
-- name: Explain failure (Custom Endpoint)
-	if: failure()
-	uses: gopalcnepal/explain-ci@v1
-	with:
-		api_key: ${{ secrets.CUSTOM_LLM_API_KEY }}
-		model: my-model
-		base_url: https://my-endpoint.example.com/v1
+explain-failure:
+	if: always()
+	needs: [test, lint]
+	runs-on: ubuntu-latest
+	steps:
+		- name: Explain CI failure
+			uses: gopalcnepal/explain-ci@v1
+			with:
+				api_key: ${{ secrets.CUSTOM_LLM_API_KEY }}
+				model: my-model
+				base_url: https://my-endpoint.example.com/v1
 ```
 
 ## Behavior Notes
 
-- If a PR exists for the run commit, the action comments on the PR only.
-- If no PR exists, the action comments on the run head commit.
-- To avoid stale comments on older runs, only the latest run for that branch/event posts a comment.
+- **PR Comment Deduplication**: If the same commit is tested in both a `pull_request` event (PR) and a `push` event, only the PR run comments to avoid duplicates.
+- **Comment Target**: If a PR exists for the commit, explains comment on the PR. Otherwise, comments on the commit directly.
+- **Stale Run Protection**: Only the latest workflow run on a branch+event pair comments, preventing duplicate explanations from reruns.
 
 ## Self-hosted Runner Notes
 
@@ -152,22 +176,28 @@ OpenRouter:
 - For pull requests from forks, `GITHUB_TOKEN` is often read-only by default.
 - If comments are not posted on fork PRs, this is usually a repository/org security policy and not an action bug.
 
-## Reuse Outputs In Later Steps
+## Using Action Outputs
+
+You can reference explain-ci outputs in subsequent steps of the same job:
 
 ```yaml
-- name: Explain failure
-	id: explain
-	if: failure()
-	uses: gopalcnepal/explain-ci@v1
-	with:
-		api_key: ${{ secrets.OPENAI_API_KEY }}
-
-- name: Print explanation output
+explain-failure:
 	if: always()
-	run: |
-		echo "target=${{ steps.explain.outputs.comment_target }}"
-		echo "posted=${{ steps.explain.outputs.comment_posted }}"
-		echo "pr=${{ steps.explain.outputs.pr_number }}"
+	needs: test
+	runs-on: ubuntu-latest
+	steps:
+		- name: Explain CI failure
+			id: explain
+			uses: gopalcnepal/explain-ci@v1
+			with:
+				api_key: ${{ secrets.OPENAI_API_KEY }}
+
+		- name: Log explanation outcome
+			if: always()
+			run: |
+				echo "Explanation: ${{ steps.explain.outputs.explanation_markdown }}"
+				echo "Posted to: ${{ steps.explain.outputs.comment_target }}"
+				echo "PR Number: ${{ steps.explain.outputs.pr_number }}"
 ```
 
 ## Troubleshooting

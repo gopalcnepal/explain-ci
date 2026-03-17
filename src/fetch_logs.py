@@ -38,6 +38,8 @@ def get_workflow_failure_data(
     branch = run_data.get("head_branch")
     event = run_data.get("event")
     current_run_id = int(run_data.get("id") or 0)
+    commit_sha = run_data.get("head_sha", "").strip()
+    
     if branch and event and current_run_id:
         latest_url = (
             f"https://api.github.com/repos/{repo}/actions/runs"
@@ -54,6 +56,24 @@ def get_workflow_failure_data(
                     "run_data": run_data,
                     "headers": headers,
                 }
+    
+    # For push events: if PR exists for this commit, skip this run.
+    # (The pull_request event run will handle the comment to avoid duplicates)
+    if event == "push" and commit_sha:
+        pr_search_url = (
+            f"https://api.github.com/repos/{repo}/commits/{commit_sha}/pulls"
+            f"?state=open&per_page=1"
+        )
+        pr_search_resp = requests.get(pr_search_url, headers=headers, timeout=30)
+        if pr_search_resp.status_code == 200:
+            open_prs = pr_search_resp.json()
+            if open_prs and isinstance(open_prs, list) and len(open_prs) > 0:
+                return {
+                    "status": "stale_run",
+                    "run_data": run_data,
+                    "headers": headers,
+                }
+
 
     jobs_url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/jobs?per_page=100"
     jobs_resp = requests.get(jobs_url, headers=headers, timeout=30)
@@ -61,7 +81,13 @@ def get_workflow_failure_data(
 
     failed_job = None
     for job in jobs_resp.json().get("jobs", []):
+        # Look for jobs with conclusion=failure (completed) or with failed steps (in_progress)
         if job.get("conclusion") == "failure":
+            failed_job = job
+            break
+        # Check for jobs with at least one failed step (current job may still be in_progress)
+        steps = job.get("steps", [])
+        if steps and any(step.get("conclusion") == "failure" for step in steps):
             failed_job = job
             break
 
