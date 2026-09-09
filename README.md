@@ -2,6 +2,12 @@
 
 Explain failed GitHub Actions jobs in plain English using your own LLM key.
 
+![explain-ci explaining a failed test run in a pull request comment](https://raw.githubusercontent.com/gopalcnepal/explain-ci/main/screenshots/pr-comment.png)
+
+*A real explain-ci comment. A test failed on a boundary condition; explain-ci
+read the CI log and named both the cause (`<` should be `<=`) and the fix —
+before anyone opened the logs.*
+
 This action:
 - reads the failed job log from the current workflow run,
 - extracts key error sections,
