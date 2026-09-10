@@ -37,16 +37,44 @@ _PREFIXED_PATTERNS = (
 )
 
 # Long opaque runs catch keys the named patterns miss (AWS secret keys,
-# base64 blobs). Hex and decimal runs are excluded below.
+# base64 blobs). _is_credential_like() filters out the look-alikes.
 _LONG_RUN = re.compile(r"\b[A-Za-z0-9+/]{40,}={0,2}")
 _HEX_OR_DIGITS = re.compile(r"[0-9a-f]+|[0-9A-F]+|[0-9]+")
 
+# A deep path ("a/b/c/d/e/f") is long and opaque but is not a secret.
+# Real base64 keys carry a slash or two at most.
+_MAX_SLASHES = 3
+
+
+def _is_credential_like(value: str) -> bool:
+    """Decide whether a long run looks like a key rather than log noise.
+
+    Keeps the values that are long for innocent reasons - commit SHAs,
+    checksums, numeric IDs and deep file paths - all of which carry real
+    diagnostic value in a CI log.
+
+    Args:
+        value: A run of characters matched by _LONG_RUN.
+
+    Returns:
+        True when the run has the character mix of a random credential.
+    """
+    if _HEX_OR_DIGITS.fullmatch(value):
+        return False
+    if value.count("/") > _MAX_SLASHES:
+        return False
+    if "+" in value or "=" in value:
+        # base64 padding and plus signs are rare outside encoded data.
+        return True
+    return (
+        any(c.isupper() for c in value)
+        and any(c.islower() for c in value)
+        and any(c.isdigit() for c in value)
+    )
+
 
 def _redact_long_runs(text: str) -> tuple[str, int]:
-    """Redact long opaque strings that are not plain hex or decimal.
-
-    Commit SHAs, checksums and numeric IDs are long but are not secrets,
-    and they carry real diagnostic value in a CI log, so they are kept.
+    """Redact long opaque strings that look like credentials.
 
     Args:
         text: Log text to scan.
@@ -59,7 +87,7 @@ def _redact_long_runs(text: str) -> tuple[str, int]:
     def replace(match: re.Match[str]) -> str:
         nonlocal hits
         value = match.group(0)
-        if _HEX_OR_DIGITS.fullmatch(value):
+        if not _is_credential_like(value):
             return value
         hits += 1
         return REDACTED
