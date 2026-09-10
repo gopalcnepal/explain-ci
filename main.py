@@ -4,7 +4,8 @@ from src.config import get_runtime_config
 from src.fetch_logs import get_workflow_failure_data
 from src.llm_analysis import build_explanation_markdown
 from src.parse_logs import parse_log_sections
-from src.post_comment import publish_comment
+from src.post_comment import publish_comment, resolve_pr_number
+from src.pr_diff import get_relevant_diff
 from src.redact import redact_sections
 
 
@@ -157,6 +158,25 @@ def run() -> int:
             config["log_lines"],
         )
         gha_notice("Log parsing completed")
+    finally:
+        gha_group_end()
+
+    gha_group_start("Collect PR diff context")
+    try:
+        pr_number = resolve_pr_number(config["pr_number"], failure_data["run_data"])
+        if pr_number:
+            parsed_data["pr_diff"] = get_relevant_diff(
+                config["repo"],
+                pr_number,
+                failure_data["headers"],
+                "\n".join(parsed_data.values()),
+            )
+            gha_notice(
+                "Diff context: "
+                f"{len(parsed_data['pr_diff'])} chars from changed files named in the log"
+            )
+        else:
+            gha_notice("No pull request for this run; skipping diff context")
     finally:
         gha_group_end()
 
