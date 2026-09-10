@@ -170,6 +170,7 @@ explain-failure:
 - **Comment Updates on Re-runs**: Each comment embeds a hidden `<!-- explain-ci -->` marker. On re-runs the existing comment is updated in place instead of posting a new one.
 - **Comment Target**: If a PR exists for the commit, explains comment on the PR. Otherwise, comments on the commit directly.
 - **Stale Run Protection**: Only the latest run of the same workflow on a branch+event pair comments, preventing duplicate explanations from reruns.
+- **PR Diff Context**: On pull requests, explain-ci fetches the changed files and includes the patches for files the error log actually names. The model can then point at the specific changed line rather than guessing from the log alone. Unrelated files are not sent, and the diff is redacted like any other input.
 - **Secret Redaction**: Log text is scrubbed for credential-looking values (GitHub tokens, AWS keys, Slack tokens, `Authorization` headers, passwords in URLs, PEM private keys and other long opaque strings) **before** anything is sent to your LLM provider. Commit SHAs and checksums are left intact.
 - **API Key Security**: Your API key is automatically masked in GitHub Actions logs to prevent accidental exposure.
 - **Never Fails Your Pipeline**: If explain-ci itself errors (GitHub API, LLM provider, etc.), it emits a workflow warning and exits 0. Set `fail_on_error: true` to make such errors fail the job instead.
@@ -241,6 +242,7 @@ explain-failure:
   - `parse_logs.py` - Log parsing and error section extraction
   - `llm_analysis.py` - LLM integration and response formatting
   - `post_comment.py` - PR and commit comment posting logic
+  - `pr_diff.py` - Changed-file patches for files named in the error log
   - `redact.py` - Credential scrubbing applied before the LLM call
 - All code is documented with docstrings following Google-style format.
 - Type hints are present throughout for IDE support and type checking.

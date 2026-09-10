@@ -60,6 +60,27 @@ def _upsert_comment(
     return resp.status_code == 201
 
 
+def resolve_pr_number(
+    explicit_pr_number: str,
+    run_data: dict[str, Any],
+) -> int | None:
+    """Work out which PR this run belongs to, if any.
+
+    Args:
+        explicit_pr_number: PR number from the event payload, '' if absent.
+        run_data: Workflow run data from get_workflow_failure_data().
+
+    Returns:
+        The PR number, or None when the run has no associated PR.
+    """
+    if explicit_pr_number.strip().isdigit():
+        return int(explicit_pr_number.strip())
+    pull_requests = run_data.get("pull_requests") or []
+    if pull_requests and isinstance(pull_requests[0].get("number"), int):
+        return int(pull_requests[0]["number"])
+    return None
+
+
 def publish_comment(
     repo: str,
     headers: dict[str, Any],
@@ -96,13 +117,7 @@ def publish_comment(
             "pr_number": "",
         }
 
-    pr_number = None
-    if explicit_pr_number.strip().isdigit():
-        pr_number = int(explicit_pr_number.strip())
-    else:
-        pull_requests = run_data.get("pull_requests") or []
-        if pull_requests and isinstance(pull_requests[0].get("number"), int):
-            pr_number = int(pull_requests[0]["number"])
+    pr_number = resolve_pr_number(explicit_pr_number, run_data)
 
     if pr_number:
         # PR exists: comment only on PR and never on commit to avoid duplicates.

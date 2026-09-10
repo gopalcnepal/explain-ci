@@ -30,7 +30,9 @@ def build_explanation_markdown(
     system_prompt = (
         "You are an expert DevOps engineer analyzing failed GitHub Actions logs. "
         "Be concise and return Markdown with exactly two sections: "
-        "**Root Cause:** and **Suggested Fix:**."
+        "**Root Cause:** and **Suggested Fix:**. "
+        "If a diff of the changed files is provided, use it to point at the "
+        "specific line that caused the failure."
     )
 
     user_prompt = (
@@ -48,6 +50,16 @@ def build_explanation_markdown(
         f"{parsed_data.get('github_error', 'No runner status available')}\n"
         "```"
     )
+
+    # Only present when the run belongs to a PR that changed a file the log names.
+    pr_diff = parsed_data.get("pr_diff") or ""
+    if pr_diff:
+        user_prompt += (
+            "\n\n### 4. Diff of changed files named in the error\n"
+            "```diff\n"
+            f"{pr_diff}\n"
+            "```"
+        )
 
     response = client.chat.completions.create(
         model=model,
