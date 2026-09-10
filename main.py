@@ -5,6 +5,7 @@ from src.fetch_logs import get_workflow_failure_data
 from src.llm_analysis import build_explanation_markdown
 from src.parse_logs import parse_log_sections
 from src.post_comment import publish_comment
+from src.redact import redact_sections
 
 
 def gha_notice(message: str) -> None:
@@ -156,6 +157,13 @@ def run() -> int:
             config["log_lines"],
         )
         gha_notice("Log parsing completed")
+    finally:
+        gha_group_end()
+
+    gha_group_start("Redact secrets")
+    try:
+        parsed_data, redaction_count = redact_sections(parsed_data)
+        gha_notice(f"Redacted {redaction_count} credential-like value(s) before analysis")
     finally:
         gha_group_end()
 
