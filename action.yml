@@ -40,7 +40,7 @@ outputs:
     description: 'Model-generated markdown explanation for the failed CI job.'
     value: ${{ steps.analyze.outputs.explanation_markdown }}
   comment_target:
-    description: 'Where comment posting was attempted: pr, commit, none, stale_skipped, pr_run_exists, error, or *_post_failed.'
+    description: 'Where comment posting was attempted: pr_inline, pr, commit, none, stale_skipped, pr_run_exists, error, or *_post_failed.'
     value: ${{ steps.analyze.outputs.comment_target }}
   comment_posted:
     description: 'Whether a PR comment was successfully posted.'

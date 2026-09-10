@@ -1,6 +1,8 @@
 import requests
 from typing import Any
 
+from src.inline_comment import upsert_review_comment
+
 
 COMMENT_MARKER = "<!-- explain-ci -->"
 
@@ -87,6 +89,7 @@ def publish_comment(
     run_data: dict[str, Any],
     explicit_pr_number: str,
     markdown_body: str,
+    anchor: dict[str, Any] | None = None,
 ) -> dict[str, str]:
     """Post explanation comment to PR or commit.
 
@@ -100,10 +103,14 @@ def publish_comment(
         run_data: Workflow run data from get_workflow_failure_data().
         explicit_pr_number: PR number if known (empty string if not).
         markdown_body: Explanation text to post.
+        anchor: Optional {'path', 'line'} to attach the comment to a
+            specific line of the diff. Falls back to a normal PR comment
+            when absent or when GitHub rejects the anchor.
 
     Returns:
         Dictionary with keys:
-        - comment_target: 'pr', 'commit', 'none', 'stale_skipped', or '*_post_failed'
+        - comment_target: 'pr_inline', 'pr', 'commit', 'none',
+          'stale_skipped', or '*_post_failed'
         - comment_posted: 'true' or 'false'
         - pr_number: PR number if applicable, empty otherwise
     """
@@ -134,6 +141,19 @@ def publish_comment(
                 "comment_posted": "false",
                 "pr_number": str(pr_number),
             }
+
+        if anchor:
+            # Anchoring can fail for reasons we only learn from the API
+            # (line no longer in the diff, comment permissions), so a
+            # failure falls through to the normal PR comment below.
+            if upsert_review_comment(
+                repo, pr_number, headers, run_head_sha, anchor, body, COMMENT_MARKER
+            ):
+                return {
+                    "comment_target": "pr_inline",
+                    "comment_posted": "true",
+                    "pr_number": str(pr_number),
+                }
 
         posted = _upsert_comment(
             f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments",

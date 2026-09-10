@@ -111,28 +111,3 @@ def build_diff_section(selected: list[dict[str, str]]) -> str:
     return "\n\n".join(
         f"--- {item['filename']}\n{item['patch']}" for item in selected
     )
-
-
-def get_relevant_diff(
-    repo: str,
-    pr_number: int,
-    headers: dict[str, Any],
-    log_text: str,
-    max_chars: int = MAX_DIFF_CHARS,
-) -> str:
-    """Build the diff section for the files implicated by the log.
-
-    Args:
-        repo: Repository in format 'owner/repo'.
-        pr_number: Pull request number.
-        headers: GitHub API headers (with auth and Accept).
-        log_text: Text of the failing log sections.
-        max_chars: Combined budget for the selected patches.
-
-    Returns:
-        Formatted patch text, empty when no changed file is implicated.
-    """
-    files = fetch_pr_files(repo, pr_number, headers)
-    return build_diff_section(
-        select_files_mentioned_in_log(files, log_text, max_chars)
-    )
