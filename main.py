@@ -2,9 +2,11 @@ import os
 
 from src.config import get_runtime_config
 from src.fetch_logs import get_workflow_failure_data
+from src.inline_comment import find_anchor, parse_error_locations
 from src.llm_analysis import build_explanation_markdown
 from src.parse_logs import parse_log_sections
-from src.post_comment import publish_comment
+from src.post_comment import publish_comment, resolve_pr_number
+from src.pr_diff import build_diff_section, fetch_pr_files, select_files_mentioned_in_log
 from src.redact import redact_sections
 
 
@@ -160,6 +162,28 @@ def run() -> int:
     finally:
         gha_group_end()
 
+    gha_group_start("Collect PR diff context")
+    try:
+        pr_number = resolve_pr_number(config["pr_number"], failure_data["run_data"])
+        pr_files: list = []
+        if pr_number:
+            pr_files = fetch_pr_files(
+                config["repo"], pr_number, failure_data["headers"]
+            )
+            parsed_data["pr_diff"] = build_diff_section(
+                select_files_mentioned_in_log(
+                    pr_files, "\n".join(parsed_data.values())
+                )
+            )
+            gha_notice(
+                "Diff context: "
+                f"{len(parsed_data['pr_diff'])} chars from changed files named in the log"
+            )
+        else:
+            gha_notice("No pull request for this run; skipping diff context")
+    finally:
+        gha_group_end()
+
     gha_group_start("Redact secrets")
     try:
         parsed_data, redaction_count = redact_sections(parsed_data)
@@ -180,6 +204,18 @@ def run() -> int:
     finally:
         gha_group_end()
 
+    gha_group_start("Locate failing line")
+    try:
+        anchor = find_anchor(
+            parse_error_locations("\n".join(parsed_data.values())), pr_files
+        )
+        if anchor:
+            gha_notice(f"Anchoring comment to {anchor['path']}:{anchor['line']}")
+        else:
+            gha_notice("No commentable line in the diff; using a normal comment")
+    finally:
+        gha_group_end()
+
     gha_group_start("Publish comment")
     try:
         publish_data = publish_comment(
@@ -188,6 +224,7 @@ def run() -> int:
             failure_data["run_data"],
             config["pr_number"],
             markdown,
+            anchor,
         )
         gha_notice(
             "Comment publish result: "

@@ -1,6 +1,8 @@
 import requests
 from typing import Any
 
+from src.inline_comment import upsert_review_comment
+
 
 COMMENT_MARKER = "<!-- explain-ci -->"
 
@@ -60,12 +62,34 @@ def _upsert_comment(
     return resp.status_code == 201
 
 
+def resolve_pr_number(
+    explicit_pr_number: str,
+    run_data: dict[str, Any],
+) -> int | None:
+    """Work out which PR this run belongs to, if any.
+
+    Args:
+        explicit_pr_number: PR number from the event payload, '' if absent.
+        run_data: Workflow run data from get_workflow_failure_data().
+
+    Returns:
+        The PR number, or None when the run has no associated PR.
+    """
+    if explicit_pr_number.strip().isdigit():
+        return int(explicit_pr_number.strip())
+    pull_requests = run_data.get("pull_requests") or []
+    if pull_requests and isinstance(pull_requests[0].get("number"), int):
+        return int(pull_requests[0]["number"])
+    return None
+
+
 def publish_comment(
     repo: str,
     headers: dict[str, Any],
     run_data: dict[str, Any],
     explicit_pr_number: str,
     markdown_body: str,
+    anchor: dict[str, Any] | None = None,
 ) -> dict[str, str]:
     """Post explanation comment to PR or commit.
 
@@ -79,10 +103,14 @@ def publish_comment(
         run_data: Workflow run data from get_workflow_failure_data().
         explicit_pr_number: PR number if known (empty string if not).
         markdown_body: Explanation text to post.
+        anchor: Optional {'path', 'line'} to attach the comment to a
+            specific line of the diff. Falls back to a normal PR comment
+            when absent or when GitHub rejects the anchor.
 
     Returns:
         Dictionary with keys:
-        - comment_target: 'pr', 'commit', 'none', 'stale_skipped', or '*_post_failed'
+        - comment_target: 'pr_inline', 'pr', 'commit', 'none',
+          'stale_skipped', or '*_post_failed'
         - comment_posted: 'true' or 'false'
         - pr_number: PR number if applicable, empty otherwise
     """
@@ -96,13 +124,7 @@ def publish_comment(
             "pr_number": "",
         }
 
-    pr_number = None
-    if explicit_pr_number.strip().isdigit():
-        pr_number = int(explicit_pr_number.strip())
-    else:
-        pull_requests = run_data.get("pull_requests") or []
-        if pull_requests and isinstance(pull_requests[0].get("number"), int):
-            pr_number = int(pull_requests[0]["number"])
+    pr_number = resolve_pr_number(explicit_pr_number, run_data)
 
     if pr_number:
         # PR exists: comment only on PR and never on commit to avoid duplicates.
@@ -119,6 +141,19 @@ def publish_comment(
                 "comment_posted": "false",
                 "pr_number": str(pr_number),
             }
+
+        if anchor:
+            # Anchoring can fail for reasons we only learn from the API
+            # (line no longer in the diff, comment permissions), so a
+            # failure falls through to the normal PR comment below.
+            if upsert_review_comment(
+                repo, pr_number, headers, run_head_sha, anchor, body, COMMENT_MARKER
+            ):
+                return {
+                    "comment_target": "pr_inline",
+                    "comment_posted": "true",
+                    "pr_number": str(pr_number),
+                }
 
         posted = _upsert_comment(
             f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments",
