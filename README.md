@@ -170,6 +170,7 @@ explain-failure:
 - **Comment Updates on Re-runs**: Each comment embeds a hidden `<!-- explain-ci -->` marker. On re-runs the existing comment is updated in place instead of posting a new one.
 - **Comment Target**: If a PR exists for the commit, explains comment on the PR. Otherwise, comments on the commit directly.
 - **Stale Run Protection**: Only the latest run of the same workflow on a branch+event pair comments, preventing duplicate explanations from reruns.
+- **Secret Redaction**: Log text is scrubbed for credential-looking values (GitHub tokens, AWS keys, Slack tokens, `Authorization` headers, passwords in URLs, PEM private keys and other long opaque strings) **before** anything is sent to your LLM provider. Commit SHAs and checksums are left intact.
 - **API Key Security**: Your API key is automatically masked in GitHub Actions logs to prevent accidental exposure.
 - **Never Fails Your Pipeline**: If explain-ci itself errors (GitHub API, LLM provider, etc.), it emits a workflow warning and exits 0. Set `fail_on_error: true` to make such errors fail the job instead.
 
@@ -179,6 +180,7 @@ explain-failure:
 - **API Key Masking**: The action automatically masks your API key in workflow logs via `::add-mask::` to prevent accidental exposure in logs or console output.
 - **Token Scope**: The action uses the automatically-provided `GITHUB_TOKEN` for GitHub API calls. Ensure your workflow permissions include `actions: read` to fetch workflow logs.
 - **Custom Endpoints**: When using `base_url`, ensure your endpoint URL is trustworthy and supports HTTPS.
+- **What Leaves the Runner**: Only the extracted (and redacted) log sections are sent to your provider. GitHub masks secrets it knows about, but tokens minted or echoed during a job can reach the log unmasked, so explain-ci scrubs them itself. Redaction is pattern-based and best-effort — it reduces exposure but cannot guarantee every secret is caught. If your logs are highly sensitive, point `base_url` at a self-hosted model (for example Ollama) so nothing leaves your infrastructure.
 
 ## Self-hosted Runner Notes
 
@@ -239,5 +241,6 @@ explain-failure:
   - `parse_logs.py` - Log parsing and error section extraction
   - `llm_analysis.py` - LLM integration and response formatting
   - `post_comment.py` - PR and commit comment posting logic
+  - `redact.py` - Credential scrubbing applied before the LLM call
 - All code is documented with docstrings following Google-style format.
 - Type hints are present throughout for IDE support and type checking.
